@@ -22,6 +22,30 @@ function toBinanceSymbol(symbol: string): string {
   return symbol.trim().toUpperCase().replace(/USDT$/, "") + "USDT";
 }
 
+// 现货行情主机:data-api.binance.vision 不受美国地区限制(Vercel 默认美国服务器也能用),
+// api.binance.com 作为回退(在非美区可用)。
+const SPOT_HOSTS = [
+  "https://data-api.binance.vision",
+  "https://api.binance.com",
+];
+
+// 依次尝试多个主机,全部失败才报错
+async function fetchFromHosts(path: string, hosts: string[]) {
+  let lastError = "";
+  for (const host of hosts) {
+    try {
+      const res = await fetch(`${host}${path}`, {
+        signal: AbortSignal.timeout(10000),
+      });
+      if (res.ok) return res;
+      lastError = `HTTP ${res.status}`;
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e);
+    }
+  }
+  throw new Error(lastError || "网络请求失败");
+}
+
 // 工具1:最新价(现货)
 const getPrice = tool({
   description: "查询某个加密货币对 USDT 的最新价格。symbol 填币种代码,如 BTC、ETH、SOL。",
@@ -34,13 +58,13 @@ const getPrice = tool({
   }),
   execute: async ({ symbol }) => {
     const s = toBinanceSymbol(symbol);
-    const res = await fetch(
-      `https://api.binance.com/api/v3/ticker/price?symbol=${s}`,
-      { signal: AbortSignal.timeout(10000) }
-    );
-    if (!res.ok) return { error: `查不到交易对 ${s},请确认币种名称` };
-    const data = (await res.json()) as { symbol: string; price: string };
-    return { 交易对: data.symbol, 最新价: data.price, 单位: "USDT" };
+    try {
+      const res = await fetchFromHosts(`/api/v3/ticker/price?symbol=${s}`, SPOT_HOSTS);
+      const data = (await res.json()) as { symbol: string; price: string };
+      return { 交易对: data.symbol, 最新价: data.price, 单位: "USDT" };
+    } catch (e) {
+      return { error: `暂时无法获取 ${s} 的最新价(行情源不可用),请稍后再试` };
+    }
   },
 });
 
@@ -56,22 +80,24 @@ const getFundingRate = tool({
   }),
   execute: async ({ symbol }) => {
     const s = toBinanceSymbol(symbol);
-    const res = await fetch(
-      `https://fapi.binance.com/fapi/v1/fundingRate?symbol=${s}&limit=1`,
-      { signal: AbortSignal.timeout(10000) }
-    );
-    if (!res.ok) return { error: `查不到交易对 ${s} 的资金费率` };
-    const data = (await res.json()) as Array<{
-      symbol: string;
-      fundingRate: string;
-      fundingTime: number;
-    }>;
-    const r = data[0];
-    return {
-      交易对: r.symbol,
-      资金费率: r.fundingRate,
-      结算时间: new Date(r.fundingTime).toISOString(),
-    };
+    try {
+      const res = await fetchFromHosts(`/fapi/v1/fundingRate?symbol=${s}&limit=1`, [
+        "https://fapi.binance.com",
+      ]);
+      const data = (await res.json()) as Array<{
+        symbol: string;
+        fundingRate: string;
+        fundingTime: number;
+      }>;
+      const r = data[0];
+      return {
+        交易对: r.symbol,
+        资金费率: r.fundingRate,
+        结算时间: new Date(r.fundingTime).toISOString(),
+      };
+    } catch (e) {
+      return { error: `暂时无法获取 ${s} 的资金费率(行情源不可用),请稍后再试` };
+    }
   },
 });
 
@@ -96,21 +122,24 @@ const getKlines = tool({
   }),
   execute: async ({ symbol, interval = "1h", limit = 24 }) => {
     const s = toBinanceSymbol(symbol);
-    const res = await fetch(
-      `https://api.binance.com/api/v3/klines?symbol=${s}&interval=${interval}&limit=${Math.min(limit, 200)}`,
-      { signal: AbortSignal.timeout(10000) }
-    );
-    if (!res.ok) return { error: `查不到交易对 ${s} 的 K 线` };
-    const rows = (await res.json()) as Array<Array<string | number>>;
-    const candles = rows.map((r) => ({
-      时间: new Date(r[0] as number).toISOString(),
-      开: r[1],
-      高: r[2],
-      低: r[3],
-      收: r[4],
-      成交量: r[5],
-    }));
-    return { 交易对: s, 周期: interval, 最近K线: candles };
+    try {
+      const res = await fetchFromHosts(
+        `/api/v3/klines?symbol=${s}&interval=${interval}&limit=${Math.min(limit, 200)}`,
+        SPOT_HOSTS
+      );
+      const rows = (await res.json()) as Array<Array<string | number>>;
+      const candles = rows.map((r) => ({
+        时间: new Date(r[0] as number).toISOString(),
+        开: r[1],
+        高: r[2],
+        低: r[3],
+        收: r[4],
+        成交量: r[5],
+      }));
+      return { 交易对: s, 周期: interval, 最近K线: candles };
+    } catch (e) {
+      return { error: `暂时无法获取 ${s} 的 K 线(行情源不可用),请稍后再试` };
+    }
   },
 });
 
