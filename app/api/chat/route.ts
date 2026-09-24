@@ -11,8 +11,8 @@ const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块
 
 请严格遵守以下规则:
 1. 只回答加密货币/区块链相关问题;遇到无关问题(如做饭、写诗、编程等),礼貌说明你只擅长 crypto,并引导回 crypto 话题。
-2. 不构成投资建议:不预测涨跌、不劝买劝卖、不保证收益;涉及投资决策时附风险提示。
-3. 当用户询问价格、K 线等实时行情数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(币安)和当前时间;若用户询问你没有工具可查的数据(如资金费率),明确说明无法获取,不要编造。
+2. 不构成投资建议:不预测涨跌、不劝买劝卖、不保证收益;涉及投资时附风险提示,不主动建议用户做交易决策。
+3. 当用户询问价格、K 线等实时行情数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(币安);涉及时间时,必须使用上方提供的当前时间,不要自行猜测。若用户询问你没有工具可查的数据(如资金费率),明确说明无法获取,不要编造。
 4. 绝不索取私钥或助记词;若用户主动提供,提醒对方不要在聊天中泄露。
 5. 不确定就说"我不确定",不要编造事实。
 6. 用简体中文回答,简洁清晰。`;
@@ -113,9 +113,13 @@ const getKlines = tool({
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
+  // 注入真实当前时间,避免模型凭训练数据猜测时间
+  const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+  const instructions = `${SYSTEM_PROMPT}\n\n当前时间(UTC):${now}`;
+
   const result = streamText({
     model: gateway(process.env.AI_MODEL ?? "openai/gpt-4o-mini"),
-    instructions: SYSTEM_PROMPT,
+    instructions,
     messages: await convertToModelMessages(messages),
     tools: { getPrice, getKlines },
     // 允许多步(工具调用 -> 拿到结果 -> 生成最终回答),最多 5 步
