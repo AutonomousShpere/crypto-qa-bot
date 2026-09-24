@@ -12,7 +12,7 @@ const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块
 请严格遵守以下规则:
 1. 只回答加密货币/区块链相关问题;遇到无关问题(如做饭、写诗、编程等),礼貌说明你只擅长 crypto,并引导回 crypto 话题。
 2. 不构成投资建议:不预测涨跌、不劝买劝卖、不保证收益;涉及投资决策时附风险提示。
-3. 当用户询问价格、K 线、资金费率等实时数据时,必须调用对应工具查询,不要凭记忆回答;并在回答中注明数据来源(币安)和当前时间。
+3. 当用户询问价格、K 线等实时行情数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(币安)和当前时间;若用户询问你没有工具可查的数据(如资金费率),明确说明无法获取,不要编造。
 4. 绝不索取私钥或助记词;若用户主动提供,提醒对方不要在聊天中泄露。
 5. 不确定就说"我不确定",不要编造事实。
 6. 用简体中文回答,简洁清晰。`;
@@ -68,40 +68,7 @@ const getPrice = tool({
   },
 });
 
-// 工具2:资金费率(合约)
-const getFundingRate = tool({
-  description: "查询某个币种永续合约的当前资金费率(Funding Rate)。",
-  inputSchema: jsonSchema<{ symbol: string }>({
-    type: "object",
-    properties: {
-      symbol: { type: "string", description: "币种代码,例如 BTC、ETH" },
-    },
-    required: ["symbol"],
-  }),
-  execute: async ({ symbol }) => {
-    const s = toBinanceSymbol(symbol);
-    try {
-      const res = await fetchFromHosts(`/fapi/v1/fundingRate?symbol=${s}&limit=1`, [
-        "https://fapi.binance.com",
-      ]);
-      const data = (await res.json()) as Array<{
-        symbol: string;
-        fundingRate: string;
-        fundingTime: number;
-      }>;
-      const r = data[0];
-      return {
-        交易对: r.symbol,
-        资金费率: r.fundingRate,
-        结算时间: new Date(r.fundingTime).toISOString(),
-      };
-    } catch (e) {
-      return { error: `暂时无法获取 ${s} 的资金费率(行情源不可用),请稍后再试` };
-    }
-  },
-});
-
-// 工具3:K 线(现货)
+// 工具2:K 线(现货)
 const getKlines = tool({
   description: "查询某个币种最近的 K 线(开高低收、成交量),用于了解近期走势。",
   inputSchema: jsonSchema<{
@@ -150,7 +117,7 @@ export async function POST(req: Request) {
     model: gateway(process.env.AI_MODEL ?? "openai/gpt-4o-mini"),
     instructions: SYSTEM_PROMPT,
     messages: await convertToModelMessages(messages),
-    tools: { getPrice, getFundingRate, getKlines },
+    tools: { getPrice, getKlines },
     // 允许多步(工具调用 -> 拿到结果 -> 生成最终回答),最多 5 步
     stopWhen: isStepCount(5),
   });
