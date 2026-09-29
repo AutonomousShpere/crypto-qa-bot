@@ -12,11 +12,11 @@ const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块
 请严格遵守以下规则:
 1. 只回答加密货币/区块链相关问题;遇到无关问题(如做饭、写诗、编程等),礼貌说明你只擅长 crypto,并引导回 crypto 话题。
 2. 不构成投资建议:不预测涨跌、不劝买劝卖、不保证收益;涉及投资时附风险提示,不主动建议用户做交易决策。
-3. 当用户询问价格、K 线、24 小时行情、资金费率等实时数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(价格/K线/24h行情来自币安,资金费率来自 Hyperliquid);涉及时间时,必须使用上方提供的当前时间,不要自行猜测。
+3. 当用户询问价格、K 线、24 小时行情、资金费率等实时数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(见工具返回的 source 字段);涉及时间时,必须使用上方提供的当前时间,不要自行猜测。
 4. 绝不索取私钥或助记词;若用户主动提供,提醒对方不要在聊天中泄露。
 5. 不确定就说"我不确定",不要编造事实。
-6. 回答语言与用户提问语言保持一致(用户用英文提问就用英文回答,用中文就用中文),简洁清晰。
-7. 当用户询问走势、趋势、涨跌情况时,基于工具返回的「趋势摘要」做简洁解读:说明方向(上涨/下跌/震荡)、涨跌幅度、成交量(量能)、近期最高最低点;用客观事实描述,不给出买卖建议。`;
+6. 回答语言必须与用户提问语言保持一致(用户用英文提问就用英文回答,用中文就用中文);即使工具返回的数据字段是英文,也要翻译成用户的语言回答。简洁清晰。
+7. 当用户询问走势、趋势、涨跌情况时,基于工具返回的 trend 字段做简洁解读:说明方向(上涨/下跌/震荡)、涨跌幅度、成交量(量能)、近期最高最低点;用客观事实描述,不给出买卖建议。`;
 
 // 把用户说的币种代码统一成币安格式:BTC -> BTCUSDT
 function toBinanceSymbol(symbol: string): string {
@@ -49,7 +49,7 @@ async function fetchFromHosts(path: string, hosts: string[]) {
       lastError = e instanceof Error ? e.message : String(e);
     }
   }
-  throw new Error(lastError || "网络请求失败");
+  throw new Error(lastError || "network error");
 }
 
 // 工具1:最新价(现货)
@@ -67,9 +67,9 @@ const getPrice = tool({
     try {
       const res = await fetchFromHosts(`/api/v3/ticker/price?symbol=${s}`, SPOT_HOSTS);
       const data = (await res.json()) as { symbol: string; price: string };
-      return { 交易对: data.symbol, 最新价: data.price, 单位: "USDT", 数据来源: "币安" };
+      return { symbol: data.symbol, price: data.price, unit: "USDT", source: "Binance" };
     } catch (e) {
-      return { error: `暂时无法获取 ${s} 的最新价(行情源不可用),请稍后再试` };
+      return { error: `Unable to fetch price for ${s}` };
     }
   },
 });
@@ -98,18 +98,18 @@ const get24hStats = tool({
         quoteVolume: string;
       };
       return {
-        交易对: s,
-        最新价: d.lastPrice,
-        "24h涨跌幅": `${d.priceChangePercent}%`,
-        "24h最高": d.highPrice,
-        "24h最低": d.lowPrice,
-        "24h开盘价": d.openPrice,
-        "24h成交量": d.volume,
-        "24h成交额": d.quoteVolume,
-        数据来源: "币安",
+        symbol: s,
+        lastPrice: d.lastPrice,
+        changePercent24h: `${d.priceChangePercent}%`,
+        high24h: d.highPrice,
+        low24h: d.lowPrice,
+        open24h: d.openPrice,
+        volume24h: d.volume,
+        quoteVolume24h: d.quoteVolume,
+        source: "Binance",
       };
     } catch (e) {
-      return { error: `暂时无法获取 ${s} 的 24h 行情(行情源不可用)` };
+      return { error: `Unable to fetch 24h stats for ${s}` };
     }
   },
 });
@@ -142,12 +142,12 @@ const getKlines = tool({
       );
       const rows = (await res.json()) as Array<Array<string | number>>;
       const candles = rows.map((r) => ({
-        时间: new Date(Number(r[0])).toISOString(),
-        开: Number(r[1]),
-        高: Number(r[2]),
-        低: Number(r[3]),
-        收: Number(r[4]),
-        成交量: Number(r[5]),
+        time: new Date(Number(r[0])).toISOString(),
+        open: Number(r[1]),
+        high: Number(r[2]),
+        low: Number(r[3]),
+        close: Number(r[4]),
+        volume: Number(r[5]),
       }));
 
       const round4 = (n: number) => Number(n.toFixed(4));
@@ -155,40 +155,40 @@ const getKlines = tool({
 
       const first = candles[0];
       const last = candles[candles.length - 1];
-      const change = last.收 - first.开;
-      const changePct = (change / first.开) * 100;
-      const high = Math.max(...candles.map((c) => c.高));
-      const low = Math.min(...candles.map((c) => c.低));
-      const totalVolume = candles.reduce((sum, c) => sum + c.成交量, 0);
-      const upCount = candles.filter((c) => c.收 >= c.开).length;
+      const change = last.close - first.open;
+      const changePct = (change / first.open) * 100;
+      const high = Math.max(...candles.map((c) => c.high));
+      const low = Math.min(...candles.map((c) => c.low));
+      const totalVolume = candles.reduce((sum, c) => sum + c.volume, 0);
+      const upCount = candles.filter((c) => c.close >= c.open).length;
 
       return {
-        交易对: s,
-        周期: interval,
-        K线数量: candles.length,
-        趋势摘要: {
-          起始价: round4(first.开),
-          结束价: round4(last.收),
-          涨跌额: round4(change),
-          涨跌幅: `${round2(changePct)}%`,
-          期间最高: round4(high),
-          期间最低: round4(low),
-          总成交量: round2(totalVolume),
-          上涨根数: upCount,
-          下跌根数: candles.length - upCount,
+        symbol: s,
+        interval,
+        candleCount: candles.length,
+        trend: {
+          open: round4(first.open),
+          close: round4(last.close),
+          change: round4(change),
+          changePercent: `${round2(changePct)}%`,
+          high: round4(high),
+          low: round4(low),
+          totalVolume: round2(totalVolume),
+          upCandles: upCount,
+          downCandles: candles.length - upCount,
         },
-        最近5根K线: candles.slice(-5).map((c) => ({
-          时间: c.时间,
-          开: round4(c.开),
-          高: round4(c.高),
-          低: round4(c.低),
-          收: round4(c.收),
-          成交量: round2(c.成交量),
+        recentCandles: candles.slice(-5).map((c) => ({
+          time: c.time,
+          open: round4(c.open),
+          high: round4(c.high),
+          low: round4(c.low),
+          close: round4(c.close),
+          volume: round2(c.volume),
         })),
-        数据来源: "币安",
+        source: "Binance",
       };
     } catch (e) {
-      return { error: `暂时无法获取 ${s} 的 K 线(行情源不可用),请稍后再试` };
+      return { error: `Unable to fetch klines for ${s}` };
     }
   },
 });
@@ -218,7 +218,7 @@ const getFundingRate = tool({
         }),
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) return { error: `查不到 ${coin} 的资金费率` };
+      if (!res.ok) return { error: `Unable to fetch funding rate for ${coin}` };
       const data = (await res.json()) as Array<{
         coin: string;
         fundingRate: string;
@@ -226,29 +226,52 @@ const getFundingRate = tool({
         time: number;
       }>;
       if (!Array.isArray(data) || data.length === 0) {
-        return { error: `Hyperliquid 暂无 ${coin} 的资金费率数据` };
+        return { error: `No funding rate data for ${coin}` };
       }
       const latest = data[data.length - 1];
       const rate = parseFloat(latest.fundingRate);
       return {
-        币种: latest.coin,
-        资金费率: latest.fundingRate,
-        资金费率百分比: `${(rate * 100).toFixed(5)}%`,
-        结算时间: new Date(latest.time).toISOString(),
-        数据来源: "Hyperliquid",
+        coin: latest.coin,
+        fundingRate: latest.fundingRate,
+        fundingRatePercent: `${(rate * 100).toFixed(5)}%`,
+        time: new Date(latest.time).toISOString(),
+        source: "Hyperliquid",
       };
     } catch (e) {
-      return { error: `暂时无法获取 ${coin} 的资金费率(数据源不可用)` };
+      return { error: `Unable to fetch funding rate for ${coin}` };
     }
   },
 });
+
+// 判断用户最后一条消息是中文还是英文
+function detectUserLanguage(
+  messages: Array<{ role?: string; parts?: Array<{ type?: string; text?: string }> }>
+): "zh" | "en" {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== "user") continue;
+    const text = (m.parts || [])
+      .filter((p) => p.type === "text")
+      .map((p) => p.text || "")
+      .join(" ");
+    if (!text.trim()) continue;
+    return /[\u4e00-\u9fff]/.test(text) ? "zh" : "en";
+  }
+  return "zh";
+}
 
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
   // 注入真实当前时间,避免模型凭训练数据猜测时间
   const now = new Date().toISOString().replace("T", " ").slice(0, 19);
-  const instructions = `${SYSTEM_PROMPT}\n\n当前时间(UTC):${now}`;
+  // 根据用户最后一条消息的语言,强制回答语言跟随
+  const lang = detectUserLanguage(messages);
+  const langInstruction =
+    lang === "en"
+      ? "The user is writing in English. Respond in English."
+      : "用户正在使用中文提问,请用简体中文回答。";
+  const instructions = `${SYSTEM_PROMPT}\n\n${langInstruction}\n当前时间(UTC):${now}`;
 
   const result = streamText({
     model: gateway(process.env.AI_MODEL ?? "openai/gpt-4o-mini"),
