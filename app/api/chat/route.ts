@@ -15,7 +15,8 @@ const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块
 3. 当用户询问价格、K 线、24 小时行情、资金费率等实时数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(价格/K线/24h行情来自币安,资金费率来自 Hyperliquid);涉及时间时,必须使用上方提供的当前时间,不要自行猜测。
 4. 绝不索取私钥或助记词;若用户主动提供,提醒对方不要在聊天中泄露。
 5. 不确定就说"我不确定",不要编造事实。
-6. 回答语言与用户提问语言保持一致(用户用英文提问就用英文回答,用中文就用中文),简洁清晰。`;
+6. 回答语言与用户提问语言保持一致(用户用英文提问就用英文回答,用中文就用中文),简洁清晰。
+7. 当用户询问走势、趋势、涨跌情况时,基于工具返回的「趋势摘要」做简洁解读:说明方向(上涨/下跌/震荡)、涨跌幅度、成交量(量能)、近期最高最低点;用客观事实描述,不给出买卖建议。`;
 
 // 把用户说的币种代码统一成币安格式:BTC -> BTCUSDT
 function toBinanceSymbol(symbol: string): string {
@@ -113,9 +114,9 @@ const get24hStats = tool({
   },
 });
 
-// 工具3:K 线(现货)
+// 工具3:K 线 + 趋势摘要(现货)
 const getKlines = tool({
-  description: "查询某个币种最近的 K 线(开高低收、成交量),用于了解近期走势。",
+  description: "查询某币种最近的 K 线并计算趋势摘要(涨跌幅、高低点、成交量、涨跌根数),用于走势分析。",
   inputSchema: jsonSchema<{
     symbol: string;
     interval?: string;
@@ -141,14 +142,51 @@ const getKlines = tool({
       );
       const rows = (await res.json()) as Array<Array<string | number>>;
       const candles = rows.map((r) => ({
-        时间: new Date(r[0] as number).toISOString(),
-        开: r[1],
-        高: r[2],
-        低: r[3],
-        收: r[4],
-        成交量: r[5],
+        时间: new Date(Number(r[0])).toISOString(),
+        开: Number(r[1]),
+        高: Number(r[2]),
+        低: Number(r[3]),
+        收: Number(r[4]),
+        成交量: Number(r[5]),
       }));
-      return { 交易对: s, 周期: interval, 最近K线: candles, 数据来源: "币安" };
+
+      const round4 = (n: number) => Number(n.toFixed(4));
+      const round2 = (n: number) => Number(n.toFixed(2));
+
+      const first = candles[0];
+      const last = candles[candles.length - 1];
+      const change = last.收 - first.开;
+      const changePct = (change / first.开) * 100;
+      const high = Math.max(...candles.map((c) => c.高));
+      const low = Math.min(...candles.map((c) => c.低));
+      const totalVolume = candles.reduce((sum, c) => sum + c.成交量, 0);
+      const upCount = candles.filter((c) => c.收 >= c.开).length;
+
+      return {
+        交易对: s,
+        周期: interval,
+        K线数量: candles.length,
+        趋势摘要: {
+          起始价: round4(first.开),
+          结束价: round4(last.收),
+          涨跌额: round4(change),
+          涨跌幅: `${round2(changePct)}%`,
+          期间最高: round4(high),
+          期间最低: round4(low),
+          总成交量: round2(totalVolume),
+          上涨根数: upCount,
+          下跌根数: candles.length - upCount,
+        },
+        最近5根K线: candles.slice(-5).map((c) => ({
+          时间: c.时间,
+          开: round4(c.开),
+          高: round4(c.高),
+          低: round4(c.低),
+          收: round4(c.收),
+          成交量: round2(c.成交量),
+        })),
+        数据来源: "币安",
+      };
     } catch (e) {
       return { error: `暂时无法获取 ${s} 的 K 线(行情源不可用),请稍后再试` };
     }
