@@ -75,6 +75,7 @@ const getPrice = tool({
       const data = (await res.json()) as { symbol: string; price: string };
       return { symbol: data.symbol, price: data.price, unit: "USDT", source: "Binance" };
     } catch (e) {
+      console.error(`[tool:getPrice] failed for ${s}:`, e);
       return { error: `Unable to fetch price for ${s}` };
     }
   },
@@ -115,6 +116,7 @@ const get24hStats = tool({
         source: "Binance",
       };
     } catch (e) {
+      console.error(`[tool:get24hStats] failed for ${s}:`, e);
       return { error: `Unable to fetch 24h stats for ${s}` };
     }
   },
@@ -194,6 +196,7 @@ const getKlines = tool({
         source: "Binance",
       };
     } catch (e) {
+      console.error(`[tool:getKlines] failed for ${s}:`, e);
       return { error: `Unable to fetch klines for ${s}` };
     }
   },
@@ -244,15 +247,16 @@ const getFundingRate = tool({
         source: "Hyperliquid",
       };
     } catch (e) {
+      console.error(`[tool:getFundingRate] failed for ${coin}:`, e);
       return { error: `Unable to fetch funding rate for ${coin}` };
     }
   },
 });
 
-// 判断用户最后一条消息是中文还是英文
-function detectUserLanguage(
+// 提取用户最后一条消息的纯文本
+function lastUserText(
   messages: Array<{ role?: string; parts?: Array<{ type?: string; text?: string }> }>
-): "zh" | "en" {
+): string {
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
     if (m.role !== "user") continue;
@@ -260,33 +264,116 @@ function detectUserLanguage(
       .filter((p) => p.type === "text")
       .map((p) => p.text || "")
       .join(" ");
-    if (!text.trim()) continue;
-    return /[\u4e00-\u9fff]/.test(text) ? "zh" : "en";
+    if (text.trim()) return text.trim();
   }
-  return "zh";
+  return "";
+}
+
+// 判断用户最后一条消息是中文还是英文
+function detectUserLanguage(
+  messages: Array<{ role?: string; parts?: Array<{ type?: string; text?: string }> }>
+): "zh" | "en" {
+  return /[\u4e00-\u9fff]/.test(lastUserText(messages)) ? "zh" : "en";
+}
+
+// ===== 限流(内存版,按 IP)=====
+// 注意:Vercel 多实例时各实例独立计数,生产级需用 Redis 等共享存储
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT_MAX = 10; // 每分钟最多请求数
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
+function getClientIp(req: Request): string {
+  return (
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown"
+  );
+}
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const recent = (rateLimitMap.get(ip) || []).filter(
+    (t) => now - t < RATE_LIMIT_WINDOW_MS
+  );
+  if (recent.length >= RATE_LIMIT_MAX) {
+    rateLimitMap.set(ip, recent);
+    return true;
+  }
+  recent.push(now);
+  rateLimitMap.set(ip, recent);
+  return false;
+}
+
+// ===== 内容安全:输入守卫 =====
+// 在给 LLM 之前拦截明显的攻击/敏感输入,返回拦截原因(非空即拦截)
+function guardInput(text: string): string | null {
+  const t = text.trim();
+  if (!t) return null;
+  // 1. 越狱 / 提示词注入
+  if (
+    /忽略.{0,12}(指令|提示词|规则)|ignore.{0,24}(instruction|prompt|rule)|jailbreak|dan\s*mode|系统提示词|system\s*prompt/i.test(t)
+  ) {
+    return "injection";
+  }
+  // 2. 助记词 / 私钥
+  const words = t.toLowerCase().split(/\s+/).filter(Boolean);
+  const seedCtx = /(助记词|种子短语|seed|mnemonic|recovery phrase|私钥|private key)/i.test(t);
+  if (seedCtx && (words.length >= 12 || /0x[0-9a-fA-F]{40,}/.test(t))) {
+    return "sensitive";
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
+  // 1. 限流
+  const ip = getClientIp(req);
+  if (isRateLimited(ip)) {
+    console.warn(`[ratelimit] blocked ip=${ip}`);
+    return new Response(JSON.stringify({ error: "请求过于频繁,请稍后再试" }), {
+      status: 429,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   const { messages } = await req.json();
 
-  // 注入真实当前时间,避免模型凭训练数据猜测时间
-  const now = new Date().toISOString().replace("T", " ").slice(0, 19);
-  // 根据用户最后一条消息的语言,强制回答语言跟随
-  const lang = detectUserLanguage(messages);
-  const langInstruction =
-    lang === "en"
-      ? "The user is writing in English. Respond in English."
-      : "用户正在使用中文提问,请用简体中文回答。";
-  const instructions = `${SYSTEM_PROMPT}\n\n${langInstruction}\n当前时间(UTC):${now}`;
+  // 2. 内容安全:输入守卫
+  const blocked = guardInput(lastUserText(messages));
+  if (blocked) {
+    console.warn(`[guard] blocked reason=${blocked} ip=${ip}`);
+    return new Response(JSON.stringify({ error: "检测到敏感或异常内容,已拦截" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
-  const result = streamText({
-    model: gateway(process.env.AI_MODEL ?? "openai/gpt-4o-mini"),
-    instructions,
-    messages: await convertToModelMessages(messages),
-    tools: { getPrice, get24hStats, getKlines, getFundingRate },
-    // 允许多步(工具调用 -> 拿到结果 -> 生成最终回答),最多 5 步
-    stopWhen: isStepCount(5),
-  });
+  try {
+    // 注入真实当前时间,避免模型凭训练数据猜测时间
+    const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+    // 根据用户最后一条消息的语言,强制回答语言跟随
+    const lang = detectUserLanguage(messages);
+    const langInstruction =
+      lang === "en"
+        ? "The user is writing in English. Respond in English."
+        : "用户正在使用中文提问,请用简体中文回答。";
+    const instructions = `${SYSTEM_PROMPT}\n\n${langInstruction}\n当前时间(UTC):${now}`;
 
-  return result.toUIMessageStreamResponse();
+    const result = streamText({
+      model: gateway(process.env.AI_MODEL ?? "openai/gpt-4o-mini"),
+      instructions,
+      messages: await convertToModelMessages(messages),
+      tools: { getPrice, get24hStats, getKlines, getFundingRate },
+      // 允许多步(工具调用 -> 拿到结果 -> 生成最终回答),最多 5 步
+      stopWhen: isStepCount(5),
+    });
+
+    return result.toUIMessageStreamResponse();
+  } catch (e) {
+    // 3. 错误日志:记录完整错误,便于排查
+    console.error("[chat] request failed:", e);
+    return new Response(JSON.stringify({ error: "服务暂时不可用,请稍后再试" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }
