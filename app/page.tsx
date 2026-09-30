@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useChat } from "@ai-sdk/react";
+import type { UIMessage } from "ai";
 import {
   type Conversation,
   listConversations,
@@ -26,6 +27,11 @@ const STRINGS = {
     welcomeSub: "支持实时价格、K 线走势,以及各种区块链概念",
     placeholder: "输入问题,回车发送…",
     send: "发送",
+    stop: "停止",
+    regenerate: "重新生成",
+    edit: "编辑",
+    save: "保存",
+    cancel: "取消",
     errorPrefix: "出错了:",
     you: "你",
     ai: "AI",
@@ -43,6 +49,11 @@ const STRINGS = {
     welcomeSub: "Live prices, K-line trends, and blockchain concepts",
     placeholder: "Type a question and press Enter…",
     send: "Send",
+    stop: "Stop",
+    regenerate: "Regenerate",
+    edit: "Edit",
+    save: "Save",
+    cancel: "Cancel",
     errorPrefix: "Error: ",
     you: "You",
     ai: "AI",
@@ -65,18 +76,41 @@ function truncate(s: string): string {
   return t.length > 18 ? t.slice(0, 18) + "…" : t;
 }
 
+function textOf(m: UIMessage): string {
+  return m.parts
+    .filter((p) => p.type === "text")
+    .map((p) => p.text)
+    .join("");
+}
+
+function feedbackOf(m: UIMessage): "up" | "down" | undefined {
+  return (m.metadata as Record<string, unknown> | undefined)?.feedback as
+    | "up"
+    | "down"
+    | undefined;
+}
+
 export default function Home() {
-  const { messages, sendMessage, status, setMessages, error } = useChat();
+  const {
+    messages,
+    sendMessage,
+    status,
+    setMessages,
+    error,
+    stop,
+    regenerate,
+  } = useChat();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [input, setInput] = useState("");
   const [lang, setLang] = useState<Lang>("zh");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
 
   const currentIdRef = useRef<string | null>(null);
   const currentTitleRef = useRef("新对话");
   const skipSaveRef = useRef(false);
 
-  // 首次加载:按浏览器语言设置界面语言
   useEffect(() => {
     const nav = typeof navigator !== "undefined" ? navigator.language : "";
     if (nav && !nav.toLowerCase().startsWith("zh")) setLang("en");
@@ -112,6 +146,7 @@ export default function Home() {
     currentIdRef.current = id;
     setCurrentId(id);
     setInput("");
+    setEditingId(null);
     skipSaveRef.current = true;
     if (id) {
       const conv = conversations.find((c) => c.id === id);
@@ -157,10 +192,39 @@ export default function Home() {
     }
   }
 
+  function toggleFeedback(m: UIMessage, value: "up" | "down") {
+    const next = feedbackOf(m) === value ? undefined : value;
+    setMessages((prev) =>
+      prev.map((x) =>
+        x.id === m.id
+          ? {
+              ...x,
+              metadata: { ...(x.metadata as Record<string, unknown>), feedback: next },
+            }
+          : x
+      )
+    );
+  }
+
+  function startEdit(m: UIMessage) {
+    setEditingId(m.id);
+    setEditingText(textOf(m));
+  }
+
+  function submitEdit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const text = editingText.trim();
+    if (!text || !editingId) return;
+    sendMessage({ text, messageId: editingId });
+    setEditingId(null);
+    setEditingText("");
+  }
+
   const t = STRINGS[lang];
   const suggestions = SUGGESTIONS[lang];
   const busy = status === "submitted" || status === "streaming";
   const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const lastIndex = messages.length - 1;
 
   return (
     <div className="layout">
@@ -230,22 +294,76 @@ export default function Home() {
               </div>
             )}
 
-            {messages.map((m) => {
-              const text = m.parts
-                .filter((p) => p.type === "text")
-                .map((p) => p.text)
-                .join("");
+            {messages.map((m, idx) => {
+              const isEditing = m.id === editingId;
+              const isLastAssistant = m.role === "assistant" && idx === lastIndex;
               return (
                 <div key={m.id} className={`message ${m.role}`}>
                   <div className="avatar">
                     {m.role === "user" ? t.you : t.ai}
                   </div>
-                  <div className="bubble">
-                    {m.role === "assistant" ? (
-                      <Markdown text={text} />
-                    ) : (
-                      <span className="plain">{text}</span>
-                    )}
+                  <div className="msg-body">
+                    <div className="bubble">
+                      {isEditing ? (
+                        <form className="edit-form" onSubmit={submitEdit}>
+                          <input
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            autoFocus
+                          />
+                          <button type="submit">{t.save}</button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                          >
+                            {t.cancel}
+                          </button>
+                        </form>
+                      ) : m.role === "assistant" ? (
+                        <Markdown text={textOf(m)} />
+                      ) : (
+                        <span className="plain">{textOf(m)}</span>
+                      )}
+                    </div>
+
+                    <div className="msg-actions">
+                      {m.role === "assistant" && (
+                        <>
+                          <button
+                            className={feedbackOf(m) === "up" ? "fb active" : "fb"}
+                            onClick={() => toggleFeedback(m, "up")}
+                            title="有帮助"
+                          >
+                            👍
+                          </button>
+                          <button
+                            className={feedbackOf(m) === "down" ? "fb active" : "fb"}
+                            onClick={() => toggleFeedback(m, "down")}
+                            title="没帮助"
+                          >
+                            👎
+                          </button>
+                          {isLastAssistant && !busy && (
+                            <button
+                              className="fb"
+                              onClick={() => regenerate()}
+                              title={t.regenerate}
+                            >
+                              🔄
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {m.role === "user" && !busy && !isEditing && (
+                        <button
+                          className="fb"
+                          onClick={() => startEdit(m)}
+                          title={t.edit}
+                        >
+                          ✏️
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -266,9 +384,19 @@ export default function Home() {
               placeholder={t.placeholder}
               disabled={busy}
             />
-            <button type="submit" disabled={busy}>
-              {t.send}
-            </button>
+            {busy ? (
+              <button
+                type="button"
+                className="stop-btn"
+                onClick={() => stop()}
+              >
+                {t.stop}
+              </button>
+            ) : (
+              <button type="submit" disabled={!input.trim()}>
+                {t.send}
+              </button>
+            )}
           </form>
         </div>
       </main>

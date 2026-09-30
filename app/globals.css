@@ -467,3 +467,84 @@ body {
   border-top: 1px solid #2a3648;
   margin: 1em 0;
 }
+
+/* ===== 消息操作(反馈/重新生成/编辑)===== */
+.msg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.msg-actions {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+.message.user .msg-actions {
+  justify-content: flex-end;
+}
+.fb {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  transition: background 0.12s, color 0.12s;
+}
+.fb:hover {
+  background: #1a2434;
+  color: #cbd5e1;
+}
+.fb.active {
+  color: #60a5fa;
+}
+
+.edit-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.edit-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #2a3648;
+  background: #121a28;
+  color: #e5e7eb;
+  font-size: 14px;
+}
+.edit-form input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+.edit-form button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.edit-form button[type="button"] {
+  background: #334155;
+}
+
+.stop-btn {
+  padding: 0 22px;
+  border: none;
+  border-radius: 12px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.stop-btn:hover {
+  background: #b91c1c;
+}
