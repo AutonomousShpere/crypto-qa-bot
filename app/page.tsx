@@ -9,6 +9,7 @@ import {
   deleteConversation,
   newConversationId,
 } from "@/lib/chat-store";
+import { Markdown } from "@/components/markdown";
 
 type Lang = "zh" | "en";
 
@@ -229,18 +230,26 @@ export default function Home() {
               </div>
             )}
 
-            {messages.map((m) => (
-              <div key={m.id} className={`message ${m.role}`}>
-                <div className="avatar">
-                  {m.role === "user" ? t.you : t.ai}
+            {messages.map((m) => {
+              const text = m.parts
+                .filter((p) => p.type === "text")
+                .map((p) => p.text)
+                .join("");
+              return (
+                <div key={m.id} className={`message ${m.role}`}>
+                  <div className="avatar">
+                    {m.role === "user" ? t.you : t.ai}
+                  </div>
+                  <div className="bubble">
+                    {m.role === "assistant" ? (
+                      <Markdown text={text} />
+                    ) : (
+                      <span className="plain">{text}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="bubble">
-                  {m.parts.map((part, i) =>
-                    part.type === "text" ? <span key={i}>{part.text}</span> : null
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </section>
 
           {error && (

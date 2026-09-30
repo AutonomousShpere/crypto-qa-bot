@@ -305,9 +305,11 @@ body {
   padding: 10px 14px;
   border-radius: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 15px;
+}
+.bubble .plain {
+  white-space: pre-wrap;
 }
 .message.assistant .bubble {
   background: #1a2434;
@@ -371,4 +373,97 @@ body {
 .input-bar button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ===== Markdown 渲染 ===== */
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
+.markdown p {
+  margin: 0.5em 0;
+}
+.markdown strong {
+  font-weight: 700;
+  color: #f8fafc;
+}
+.markdown ul,
+.markdown ol {
+  margin: 0.5em 0;
+  padding-left: 1.4em;
+}
+.markdown li {
+  margin: 0.25em 0;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 0.8em 0 0.4em;
+  line-height: 1.3;
+}
+.markdown h1 {
+  font-size: 1.25em;
+}
+.markdown h2 {
+  font-size: 1.15em;
+}
+.markdown h3 {
+  font-size: 1.05em;
+}
+.markdown h4 {
+  font-size: 1em;
+}
+.markdown table {
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  width: 100%;
+  font-size: 0.9em;
+}
+.markdown th,
+.markdown td {
+  border: 1px solid #2a3648;
+  padding: 6px 10px;
+  text-align: left;
+}
+.markdown th {
+  background: #1a2434;
+  font-weight: 600;
+}
+.markdown code {
+  background: #0f172a;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 0.9em;
+}
+.markdown pre {
+  background: #0f172a;
+  padding: 10px 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+.markdown pre code {
+  background: none;
+  padding: 0;
+}
+.markdown a {
+  color: #60a5fa;
+  text-decoration: none;
+}
+.markdown a:hover {
+  text-decoration: underline;
+}
+.markdown blockquote {
+  border-left: 3px solid #334155;
+  margin: 0.6em 0;
+  padding-left: 12px;
+  color: #94a3b8;
+}
+.markdown hr {
+  border: none;
+  border-top: 1px solid #2a3648;
+  margin: 1em 0;
 }
