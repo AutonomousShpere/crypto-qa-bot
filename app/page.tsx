@@ -11,6 +11,7 @@ import {
   newConversationId,
 } from "@/lib/chat-store";
 import { Markdown } from "@/components/markdown";
+import { truncate } from "@/lib/chat-utils";
 
 type Lang = "zh" | "en";
 
@@ -70,11 +71,6 @@ const SUGGESTIONS: Record<Lang, string[]> = {
     "What is gas?",
   ],
 };
-
-function truncate(s: string): string {
-  const t = s.trim();
-  return t.length > 18 ? t.slice(0, 18) + "…" : t;
-}
 
 function textOf(m: UIMessage): string {
   return m.parts

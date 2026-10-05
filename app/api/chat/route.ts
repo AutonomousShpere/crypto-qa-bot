@@ -6,6 +6,13 @@ import {
   jsonSchema,
   isStepCount,
 } from "ai";
+import {
+  toBinanceSymbol,
+  toCoinSymbol,
+  lastUserText,
+  detectUserLanguage,
+  guardInput,
+} from "@/lib/chat-utils";
 
 const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块链相关问题的 AI 助手。
 
@@ -23,16 +30,6 @@ const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块
 ④ 用 Markdown 表格列出最近 5 根 K 线(列:时间、开、高、低、收、成交量)。
 全程用客观事实描述,不给出买卖建议。
 8. 回答时用 Markdown 排版让内容更易读:关键数字和结论用**加粗**、多条信息用列表、对比数据用表格;但不要过度堆砌。`;
-
-// 把用户说的币种代码统一成币安格式:BTC -> BTCUSDT
-function toBinanceSymbol(symbol: string): string {
-  return symbol.trim().toUpperCase().replace(/USDT$/, "") + "USDT";
-}
-
-// Hyperliquid 币种代码:BTC / BTCUSDT -> BTC
-function toCoinSymbol(symbol: string): string {
-  return symbol.trim().toUpperCase().replace(/USDT$/, "");
-}
 
 // 现货行情主机:data-api.binance.vision 不受美国地区限制(Vercel 默认美国服务器也能用),
 // api.binance.com 作为回退(在非美区可用)。
@@ -253,29 +250,6 @@ const getFundingRate = tool({
   },
 });
 
-// 提取用户最后一条消息的纯文本
-function lastUserText(
-  messages: Array<{ role?: string; parts?: Array<{ type?: string; text?: string }> }>
-): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role !== "user") continue;
-    const text = (m.parts || [])
-      .filter((p) => p.type === "text")
-      .map((p) => p.text || "")
-      .join(" ");
-    if (text.trim()) return text.trim();
-  }
-  return "";
-}
-
-// 判断用户最后一条消息是中文还是英文
-function detectUserLanguage(
-  messages: Array<{ role?: string; parts?: Array<{ type?: string; text?: string }> }>
-): "zh" | "en" {
-  return /[\u4e00-\u9fff]/.test(lastUserText(messages)) ? "zh" : "en";
-}
-
 // ===== 限流(内存版,按 IP)=====
 // 注意:Vercel 多实例时各实例独立计数,生产级需用 Redis 等共享存储
 const rateLimitMap = new Map<string, number[]>();
@@ -302,26 +276,6 @@ function isRateLimited(ip: string): boolean {
   recent.push(now);
   rateLimitMap.set(ip, recent);
   return false;
-}
-
-// ===== 内容安全:输入守卫 =====
-// 在给 LLM 之前拦截明显的攻击/敏感输入,返回拦截原因(非空即拦截)
-function guardInput(text: string): string | null {
-  const t = text.trim();
-  if (!t) return null;
-  // 1. 越狱 / 提示词注入
-  if (
-    /忽略.{0,12}(指令|提示词|规则)|ignore.{0,24}(instruction|prompt|rule)|jailbreak|dan\s*mode|系统提示词|system\s*prompt/i.test(t)
-  ) {
-    return "injection";
-  }
-  // 2. 助记词 / 私钥
-  const words = t.toLowerCase().split(/\s+/).filter(Boolean);
-  const seedCtx = /(助记词|种子短语|seed|mnemonic|recovery phrase|私钥|private key)/i.test(t);
-  if (seedCtx && (words.length >= 12 || /0x[0-9a-fA-F]{40,}/.test(t))) {
-    return "sensitive";
-  }
-  return null;
 }
 
 export async function POST(req: Request) {
