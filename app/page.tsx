@@ -63,14 +63,65 @@ const STRINGS = {
 } as const;
 
 const SUGGESTIONS: Record<Lang, string[]> = {
-  zh: ["BTC 现在多少钱?", "什么是 DeFi?", "ETH 最近走势如何?", "什么是 Gas?"],
+  zh: [
+    "BTC 现在多少钱?",
+    "ETH 最新价格是多少?",
+    "SOL 现在什么价?",
+    "BTC 今天涨了多少?",
+    "ETH 24小时成交量多大?",
+    "BTC 最近 4 小时走势如何?",
+    "ETH 最近一天的走势怎么样?",
+    "BTC 资金费率是多少?",
+    "什么是 DeFi?",
+    "什么是智能合约?",
+    "什么是 Gas?",
+    "什么是 NFT?",
+    "比特币和以太坊有什么区别?",
+    "什么是 Layer 2?",
+    "什么是稳定币?",
+    "什么是去中心化交易所(DEX)?",
+    "什么是质押(Staking)?",
+    "区块链的工作原理是什么?",
+    "什么是空投(Airdrop)?",
+    "什么是 DAO?",
+    "什么是跨链桥?",
+    "什么是流动性挖矿?",
+  ],
   en: [
     "What's the BTC price?",
+    "What's the latest ETH price?",
+    "What's SOL trading at?",
+    "How much has BTC changed in 24 hours?",
+    "What's ETH's 24h trading volume?",
+    "How has BTC trended in the last 4 hours?",
+    "How has ETH trended in the last day?",
+    "What's the BTC funding rate?",
     "What is DeFi?",
-    "How's ETH trending?",
+    "What are smart contracts?",
     "What is gas?",
+    "What is an NFT?",
+    "What's the difference between Bitcoin and Ethereum?",
+    "What is Layer 2?",
+    "What are stablecoins?",
+    "What is a DEX?",
+    "What is staking?",
+    "How does blockchain work?",
+    "What is an airdrop?",
+    "What is a DAO?",
+    "What is a cross-chain bridge?",
+    "What is liquidity mining?",
   ],
 };
+
+// 随机抽 n 个(洗牌后取前 n)
+function pickRandom<T>(arr: T[], n: number): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
 
 function textOf(m: UIMessage): string {
   return m.parts
@@ -102,6 +153,7 @@ export default function Home() {
   const [lang, setLang] = useState<Lang>("zh");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const currentIdRef = useRef<string | null>(null);
   const currentTitleRef = useRef("新对话");
@@ -111,6 +163,10 @@ export default function Home() {
     const nav = typeof navigator !== "undefined" ? navigator.language : "";
     if (nav && !nav.toLowerCase().startsWith("zh")) setLang("en");
   }, []);
+
+  useEffect(() => {
+    setSuggestions(pickRandom(SUGGESTIONS[lang], 4));
+  }, [lang]);
 
   useEffect(() => {
     listConversations().then(setConversations);
@@ -217,7 +273,6 @@ export default function Home() {
   }
 
   const t = STRINGS[lang];
-  const suggestions = SUGGESTIONS[lang];
   const busy = status === "submitted" || status === "streaming";
   const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
   const lastIndex = messages.length - 1;
