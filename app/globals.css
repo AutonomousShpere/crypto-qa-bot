@@ -20,6 +20,17 @@ body {
 .layout {
   display: flex;
   height: 100vh;
+  --chat-font: 15px;
+  --chat-gap: 18px;
+}
+.layout[data-font="small"] {
+  --chat-font: 13px;
+}
+.layout[data-font="large"] {
+  --chat-font: 17px;
+}
+.layout[data-density="compact"] {
+  --chat-gap: 8px;
 }
 
 /* ===== 侧边栏(左) ===== */
@@ -227,7 +238,7 @@ body {
   padding: 24px 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--chat-gap, 18px);
   min-height: 0;
 }
 
@@ -323,7 +334,7 @@ body {
   border-radius: 14px;
   line-height: 1.6;
   word-break: break-word;
-  font-size: 15px;
+  font-size: var(--chat-font, 15px);
 }
 .bubble .plain {
   white-space: pre-wrap;
@@ -564,4 +575,73 @@ body {
 }
 .stop-btn:hover {
   background: #b91c1c;
+}
+
+/* ===== 设置面板 ===== */
+.sidebar-footer {
+  position: relative;
+  margin-top: 8px;
+}
+.settings-btn {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #2a3648;
+  border-radius: 8px;
+  background: none;
+  color: #cbd5e1;
+  font-size: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+.settings-btn:hover {
+  background: #1a2434;
+}
+
+.settings-panel {
+  position: absolute;
+  bottom: 44px;
+  left: 0;
+  right: 0;
+  background: #121a28;
+  border: 1px solid #2a3648;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.setting-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.setting-label {
+  font-size: 12px;
+  color: #64748b;
+}
+.setting-options {
+  display: flex;
+  gap: 6px;
+}
+.opt {
+  flex: 1;
+  padding: 6px 0;
+  border: 1px solid #2a3648;
+  border-radius: 6px;
+  background: none;
+  color: #cbd5e1;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.opt:hover {
+  background: #1a2434;
+}
+.opt.active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
 }

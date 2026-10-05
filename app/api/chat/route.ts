@@ -289,7 +289,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { messages } = await req.json();
+  const { messages, detail } = await req.json();
 
   // 2. 内容安全:输入守卫
   const blocked = guardInput(lastUserText(messages));
@@ -310,7 +310,11 @@ export async function POST(req: Request) {
       lang === "en"
         ? "The user is writing in English. Respond in English."
         : "用户正在使用中文提问,请用简体中文回答。";
-    const instructions = `${SYSTEM_PROMPT}\n\n${langInstruction}\n当前时间(UTC):${now}`;
+    const detailInstruction =
+      detail === "detailed"
+        ? "用户希望回答详细、完整,请尽量详尽地解释,可适当分点展开。"
+        : "请尽量简洁地回答问题。";
+    const instructions = `${SYSTEM_PROMPT}\n\n${langInstruction}\n${detailInstruction}\n当前时间(UTC):${now}`;
 
     const result = streamText({
       model: gateway(process.env.AI_MODEL ?? "openai/gpt-4o-mini"),

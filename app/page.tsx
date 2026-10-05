@@ -39,6 +39,17 @@ const STRINGS = {
     you: "你",
     ai: "AI",
     langToggle: "EN",
+    settings: "设置",
+    fontSizeLabel: "字号",
+    fontSizeSmall: "小",
+    fontSizeMedium: "中",
+    fontSizeLarge: "大",
+    densityLabel: "消息间距",
+    densityCompact: "紧凑",
+    densityComfortable: "舒适",
+    detailLabel: "回答详细程度",
+    detailConcise: "简洁",
+    detailDetailed: "详细",
   },
   en: {
     brand: "Crypto Assistant",
@@ -63,6 +74,17 @@ const STRINGS = {
     you: "You",
     ai: "AI",
     langToggle: "中文",
+    settings: "Settings",
+    fontSizeLabel: "Font size",
+    fontSizeSmall: "Small",
+    fontSizeMedium: "Medium",
+    fontSizeLarge: "Large",
+    densityLabel: "Spacing",
+    densityCompact: "Compact",
+    densityComfortable: "Comfortable",
+    detailLabel: "Response detail",
+    detailConcise: "Concise",
+    detailDetailed: "Detailed",
   },
 } as const;
 
@@ -140,6 +162,29 @@ function conversationSearchText(c: Conversation): string {
   return `${c.title} ${msgs}`.toLowerCase();
 }
 
+// ===== 设置 =====
+type Settings = {
+  fontSize: "small" | "medium" | "large";
+  density: "compact" | "comfortable";
+  detail: "concise" | "detailed";
+};
+
+const SETTINGS_KEY = "crypto-chat-settings";
+const DEFAULT_SETTINGS: Settings = {
+  fontSize: "medium",
+  density: "comfortable",
+  detail: "concise",
+};
+
+function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 function textOf(m: UIMessage): string {
   return m.parts
     .filter((p) => p.type === "text")
@@ -172,6 +217,8 @@ export default function Home() {
   const [editingText, setEditingText] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const currentIdRef = useRef<string | null>(null);
   const currentTitleRef = useRef("新对话");
@@ -185,6 +232,10 @@ export default function Home() {
   useEffect(() => {
     setSuggestions(pickRandom(SUGGESTIONS[lang], 4));
   }, [lang]);
+
+  useEffect(() => {
+    setSettings(loadSettings());
+  }, []);
 
   useEffect(() => {
     listConversations().then(setConversations);
@@ -240,7 +291,7 @@ export default function Home() {
       setCurrentId(currentIdRef.current);
       currentTitleRef.current = truncate(s) || t.newChatTitle;
     }
-    sendMessage({ text: s });
+    sendMessage({ text: s }, { body: { detail: settings.detail } });
     setInput("");
   }
 
@@ -260,6 +311,18 @@ export default function Home() {
       skipSaveRef.current = true;
       setMessages([]);
     }
+  }
+
+  function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      try {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+      } catch {
+        // 忽略
+      }
+      return next;
+    });
   }
 
   function toggleFeedback(m: UIMessage, value: "up" | "down") {
@@ -285,7 +348,7 @@ export default function Home() {
     e.preventDefault();
     const text = editingText.trim();
     if (!text || !editingId) return;
-    sendMessage({ text, messageId: editingId });
+    sendMessage({ text, messageId: editingId }, { body: { detail: settings.detail } });
     setEditingId(null);
     setEditingText("");
   }
@@ -300,7 +363,7 @@ export default function Home() {
   const lastIndex = messages.length - 1;
 
   return (
-    <div className="layout">
+    <div className="layout" data-font={settings.fontSize} data-density={settings.density}>
       <aside className="sidebar">
         <div className="sidebar-brand">
           <span className="logo">₿</span>
@@ -341,6 +404,38 @@ export default function Home() {
             </li>
           ))}
         </ul>
+
+        <div className="sidebar-footer">
+          {settingsOpen && (
+            <div className="settings-panel">
+              <div className="setting-group">
+                <div className="setting-label">{t.fontSizeLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.fontSize === "small" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "small")}>{t.fontSizeSmall}</button>
+                  <button className={settings.fontSize === "medium" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "medium")}>{t.fontSizeMedium}</button>
+                  <button className={settings.fontSize === "large" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "large")}>{t.fontSizeLarge}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.densityLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.density === "compact" ? "opt active" : "opt"} onClick={() => updateSetting("density", "compact")}>{t.densityCompact}</button>
+                  <button className={settings.density === "comfortable" ? "opt active" : "opt"} onClick={() => updateSetting("density", "comfortable")}>{t.densityComfortable}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.detailLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.detail === "concise" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "concise")}>{t.detailConcise}</button>
+                  <button className={settings.detail === "detailed" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "detailed")}>{t.detailDetailed}</button>
+                </div>
+              </div>
+            </div>
+          )}
+          <button className="settings-btn" onClick={() => setSettingsOpen((v) => !v)}>
+            ⚙️ {t.settings}
+          </button>
+        </div>
       </aside>
 
       <main className="app">
