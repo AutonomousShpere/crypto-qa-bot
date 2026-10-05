@@ -21,6 +21,8 @@ const STRINGS = {
     newChat: "＋ 新建对话",
     history: "历史对话",
     noHistory: "暂无历史对话",
+    searchPlaceholder: "搜索对话…",
+    noResults: "无匹配结果",
     newChatTitle: "新对话",
     title: "Crypto 问答助手",
     disclaimer: "仅供学习交流,不构成投资建议。",
@@ -43,6 +45,8 @@ const STRINGS = {
     newChat: "＋ New Chat",
     history: "History",
     noHistory: "No conversations yet",
+    searchPlaceholder: "Search chats…",
+    noResults: "No matches",
     newChatTitle: "New chat",
     title: "Crypto Q&A Assistant",
     disclaimer: "For learning only. Not financial advice.",
@@ -123,6 +127,19 @@ function pickRandom<T>(arr: T[], n: number): T[] {
   return copy.slice(0, n);
 }
 
+// 生成会话的可搜索文本(标题 + 所有消息内容)
+function conversationSearchText(c: Conversation): string {
+  const msgs = c.messages
+    .map((m) =>
+      m.parts
+        .filter((p) => p.type === "text")
+        .map((p) => p.text)
+        .join(" ")
+    )
+    .join(" ");
+  return `${c.title} ${msgs}`.toLowerCase();
+}
+
 function textOf(m: UIMessage): string {
   return m.parts
     .filter((p) => p.type === "text")
@@ -154,6 +171,7 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const currentIdRef = useRef<string | null>(null);
   const currentTitleRef = useRef("新对话");
@@ -275,6 +293,10 @@ export default function Home() {
   const t = STRINGS[lang];
   const busy = status === "submitted" || status === "streaming";
   const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const q = searchQuery.trim().toLowerCase();
+  const filtered = q
+    ? sorted.filter((c) => conversationSearchText(c).includes(q))
+    : sorted;
   const lastIndex = messages.length - 1;
 
   return (
@@ -289,12 +311,19 @@ export default function Home() {
           {t.newChat}
         </button>
 
+        <input
+          className="search-input"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t.searchPlaceholder}
+        />
+
         <div className="chat-list-title">{t.history}</div>
         <ul className="chat-list">
-          {sorted.length === 0 && (
-            <li className="chat-empty">{t.noHistory}</li>
+          {filtered.length === 0 && (
+            <li className="chat-empty">{q ? t.noResults : t.noHistory}</li>
           )}
-          {sorted.map((c) => (
+          {filtered.map((c) => (
             <li
               key={c.id}
               className={c.id === currentId ? "chat-item active" : "chat-item"}
