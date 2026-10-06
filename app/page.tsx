@@ -484,13 +484,14 @@ export default function Home() {
   const lastIndex = messages.length - 1;
 
   return (
-    <div
-      className="layout"
-      data-font={settings.fontSize}
-      data-density={settings.density}
-      data-theme={settings.theme}
-      data-width={settings.sidebarWidth}
-    >
+    <>
+      <div
+        className="layout"
+        data-font={settings.fontSize}
+        data-density={settings.density}
+        data-theme={settings.theme}
+        data-width={settings.sidebarWidth}
+      >
       <aside className="sidebar">
         <div className="sidebar-brand">
           <span className="logo">₿</span>
@@ -533,81 +534,7 @@ export default function Home() {
         </ul>
 
         <div className="sidebar-footer">
-          {settingsOpen && (
-            <div className="settings-panel">
-              <div className="setting-group">
-                <div className="setting-label">{t.themeLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.theme === "dark" ? "opt active" : "opt"} onClick={() => updateSetting("theme", "dark")}>{t.themeDark}</button>
-                  <button className={settings.theme === "light" ? "opt active" : "opt"} onClick={() => updateSetting("theme", "light")}>{t.themeLight}</button>
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.fontSizeLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.fontSize === "small" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "small")}>{t.fontSizeSmall}</button>
-                  <button className={settings.fontSize === "medium" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "medium")}>{t.fontSizeMedium}</button>
-                  <button className={settings.fontSize === "large" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "large")}>{t.fontSizeLarge}</button>
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.densityLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.density === "compact" ? "opt active" : "opt"} onClick={() => updateSetting("density", "compact")}>{t.densityCompact}</button>
-                  <button className={settings.density === "comfortable" ? "opt active" : "opt"} onClick={() => updateSetting("density", "comfortable")}>{t.densityComfortable}</button>
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.sidebarWidthLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.sidebarWidth === "narrow" ? "opt active" : "opt"} onClick={() => updateSetting("sidebarWidth", "narrow")}>{t.sidebarNarrow}</button>
-                  <button className={settings.sidebarWidth === "wide" ? "opt active" : "opt"} onClick={() => updateSetting("sidebarWidth", "wide")}>{t.sidebarWide}</button>
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.detailLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.detail === "concise" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "concise")}>{t.detailConcise}</button>
-                  <button className={settings.detail === "detailed" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "detailed")}>{t.detailDetailed}</button>
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.responseLangLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.responseLang === "follow" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "follow")}>{t.responseFollow}</button>
-                  <button className={settings.responseLang === "zh" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "zh")}>{t.responseZh}</button>
-                  <button className={settings.responseLang === "en" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "en")}>{t.responseEn}</button>
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.modelLabel}</div>
-                <div className="setting-options">
-                  {MODEL_OPTIONS.map((m) => (
-                    <button key={m.value} className={settings.model === m.value ? "opt active" : "opt"} onClick={() => updateSetting("model", m.value)}>{m.label}</button>
-                  ))}
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.autoScrollLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.autoScroll ? "opt active" : "opt"} onClick={() => updateSetting("autoScroll", true)}>{t.on}</button>
-                  <button className={!settings.autoScroll ? "opt active" : "opt"} onClick={() => updateSetting("autoScroll", false)}>{t.off}</button>
-                </div>
-              </div>
-              <div className="setting-group">
-                <div className="setting-label">{t.soundLabel}</div>
-                <div className="setting-options">
-                  <button className={settings.sound ? "opt active" : "opt"} onClick={() => updateSetting("sound", true)}>{t.on}</button>
-                  <button className={!settings.sound ? "opt active" : "opt"} onClick={() => updateSetting("sound", false)}>{t.off}</button>
-                </div>
-              </div>
-              <div className="setting-actions">
-                <button className="action-btn" onClick={exportChat}>{t.exportChat}</button>
-                <button className="action-btn danger" onClick={clearAllChats}>{t.clearAll}</button>
-              </div>
-            </div>
-          )}
-          <button className="settings-btn" onClick={() => setSettingsOpen((v) => !v)}>
+          <button className="settings-btn" onClick={() => setSettingsOpen(true)}>
             ⚙️ {t.settings}
           </button>
         </div>
@@ -751,6 +678,92 @@ export default function Home() {
           </form>
         </div>
       </main>
-    </div>
+      </div>
+
+      {settingsOpen && (
+        <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>⚙️ {t.settings}</span>
+              <button className="modal-close" onClick={() => setSettingsOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="setting-group">
+                <div className="setting-label">{t.themeLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.theme === "dark" ? "opt active" : "opt"} onClick={() => updateSetting("theme", "dark")}>{t.themeDark}</button>
+                  <button className={settings.theme === "light" ? "opt active" : "opt"} onClick={() => updateSetting("theme", "light")}>{t.themeLight}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.fontSizeLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.fontSize === "small" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "small")}>{t.fontSizeSmall}</button>
+                  <button className={settings.fontSize === "medium" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "medium")}>{t.fontSizeMedium}</button>
+                  <button className={settings.fontSize === "large" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "large")}>{t.fontSizeLarge}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.densityLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.density === "compact" ? "opt active" : "opt"} onClick={() => updateSetting("density", "compact")}>{t.densityCompact}</button>
+                  <button className={settings.density === "comfortable" ? "opt active" : "opt"} onClick={() => updateSetting("density", "comfortable")}>{t.densityComfortable}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.sidebarWidthLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.sidebarWidth === "narrow" ? "opt active" : "opt"} onClick={() => updateSetting("sidebarWidth", "narrow")}>{t.sidebarNarrow}</button>
+                  <button className={settings.sidebarWidth === "wide" ? "opt active" : "opt"} onClick={() => updateSetting("sidebarWidth", "wide")}>{t.sidebarWide}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.detailLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.detail === "concise" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "concise")}>{t.detailConcise}</button>
+                  <button className={settings.detail === "detailed" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "detailed")}>{t.detailDetailed}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.responseLangLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.responseLang === "follow" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "follow")}>{t.responseFollow}</button>
+                  <button className={settings.responseLang === "zh" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "zh")}>{t.responseZh}</button>
+                  <button className={settings.responseLang === "en" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "en")}>{t.responseEn}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.modelLabel}</div>
+                <div className="setting-options">
+                  {MODEL_OPTIONS.map((m) => (
+                    <button key={m.value} className={settings.model === m.value ? "opt active" : "opt"} onClick={() => updateSetting("model", m.value)}>{m.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.autoScrollLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.autoScroll ? "opt active" : "opt"} onClick={() => updateSetting("autoScroll", true)}>{t.on}</button>
+                  <button className={!settings.autoScroll ? "opt active" : "opt"} onClick={() => updateSetting("autoScroll", false)}>{t.off}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.soundLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.sound ? "opt active" : "opt"} onClick={() => updateSetting("sound", true)}>{t.on}</button>
+                  <button className={!settings.sound ? "opt active" : "opt"} onClick={() => updateSetting("sound", false)}>{t.off}</button>
+                </div>
+              </div>
+              <div className="setting-actions">
+                <button className="action-btn" onClick={exportChat}>{t.exportChat}</button>
+                <button className="action-btn danger" onClick={clearAllChats}>{t.clearAll}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

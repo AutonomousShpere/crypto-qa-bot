@@ -598,19 +598,51 @@ body {
   background: #1a2434;
 }
 
-.settings-panel {
-  position: absolute;
-  bottom: 44px;
-  left: 0;
-  right: 0;
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal {
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  max-height: 82vh;
   background: #121a28;
   border: 1px solid #2a3648;
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: 14px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #2a3648;
+  font-size: 15px;
+  font-weight: 600;
+}
+.modal-close {
+  background: none;
+  border: none;
+  color: #64748b;
+  cursor: pointer;
+  font-size: 16px;
+}
+.modal-close:hover {
+  color: #f1f5f9;
+}
+.modal-body {
+  padding: 14px 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 }
 
 .setting-group {
@@ -747,10 +779,13 @@ body[data-theme="light"] .settings-btn:hover,
 body[data-theme="light"] .fb:hover {
   background: #f1f5f9;
 }
-body[data-theme="light"] .settings-panel {
+body[data-theme="light"] .modal {
   background: #ffffff;
   border-color: #cbd5e1;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.2);
+}
+body[data-theme="light"] .modal-header {
+  border-bottom-color: #e2e8f0;
 }
 body[data-theme="light"] .markdown strong {
   color: #0f172a;
