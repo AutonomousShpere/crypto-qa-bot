@@ -14,6 +14,13 @@ import {
   guardInput,
 } from "@/lib/chat-utils";
 
+// 允许前端切换的模型白名单(防止任意模型名注入)
+const ALLOWED_MODELS = [
+  "openai/gpt-4o-mini",
+  "openai/gpt-4o",
+  "deepseek/deepseek-chat",
+];
+
 const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块链相关问题的 AI 助手。
 
 请严格遵守以下规则:
@@ -289,7 +296,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const { messages, detail } = await req.json();
+  const { messages, detail, responseLang, model: bodyModel } = await req.json();
 
   // 2. 内容安全:输入守卫
   const blocked = guardInput(lastUserText(messages));
@@ -305,19 +312,28 @@ export async function POST(req: Request) {
     // 注入真实当前时间,避免模型凭训练数据猜测时间
     const now = new Date().toISOString().replace("T", " ").slice(0, 19);
     // 根据用户最后一条消息的语言,强制回答语言跟随
-    const lang = detectUserLanguage(messages);
+    const lang =
+      responseLang === "zh"
+        ? "zh"
+        : responseLang === "en"
+          ? "en"
+          : detectUserLanguage(messages);
     const langInstruction =
       lang === "en"
-        ? "The user is writing in English. Respond in English."
-        : "用户正在使用中文提问,请用简体中文回答。";
+        ? "IMPORTANT: You must respond in English only. Never respond in Chinese, even if the user writes in Chinese."
+        : "重要:请务必只用简体中文回答,即使用户用英文提问也不要回答英文。";
     const detailInstruction =
       detail === "detailed"
         ? "用户希望回答详细、完整,请尽量详尽地解释,可适当分点展开。"
         : "请尽量简洁地回答问题。";
     const instructions = `${SYSTEM_PROMPT}\n\n${langInstruction}\n${detailInstruction}\n当前时间(UTC):${now}`;
 
+    const model = ALLOWED_MODELS.includes(bodyModel)
+      ? bodyModel
+      : process.env.AI_MODEL ?? "openai/gpt-4o-mini";
+
     const result = streamText({
-      model: gateway(process.env.AI_MODEL ?? "openai/gpt-4o-mini"),
+      model: gateway(model),
       instructions,
       messages: await convertToModelMessages(messages),
       tools: { getPrice, get24hStats, getKlines, getFundingRate },

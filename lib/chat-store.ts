@@ -32,6 +32,11 @@ export async function deleteConversation(id: string): Promise<void> {
   writeAll(readAll().filter((c) => c.id !== id));
 }
 
+/** 清空所有会话 */
+export async function clearAllConversations(): Promise<void> {
+  writeAll([]);
+}
+
 /** 生成新的会话 id */
 export function newConversationId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

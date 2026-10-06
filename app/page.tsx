@@ -8,6 +8,7 @@ import {
   listConversations,
   upsertConversation,
   deleteConversation,
+  clearAllConversations,
   newConversationId,
 } from "@/lib/chat-store";
 import { Markdown } from "@/components/markdown";
@@ -50,6 +51,23 @@ const STRINGS = {
     detailLabel: "回答详细程度",
     detailConcise: "简洁",
     detailDetailed: "详细",
+    themeLabel: "主题",
+    themeDark: "深色",
+    themeLight: "浅色",
+    sidebarWidthLabel: "侧边栏宽度",
+    sidebarNarrow: "窄",
+    sidebarWide: "宽",
+    responseLangLabel: "回答语言",
+    responseFollow: "跟随提问",
+    responseZh: "中文",
+    responseEn: "English",
+    modelLabel: "模型",
+    autoScrollLabel: "自动滚动",
+    soundLabel: "声音提醒",
+    on: "开",
+    off: "关",
+    clearAll: "清除所有对话",
+    exportChat: "导出对话",
   },
   en: {
     brand: "Crypto Assistant",
@@ -85,6 +103,23 @@ const STRINGS = {
     detailLabel: "Response detail",
     detailConcise: "Concise",
     detailDetailed: "Detailed",
+    themeLabel: "Theme",
+    themeDark: "Dark",
+    themeLight: "Light",
+    sidebarWidthLabel: "Sidebar",
+    sidebarNarrow: "Narrow",
+    sidebarWide: "Wide",
+    responseLangLabel: "Response language",
+    responseFollow: "Follow",
+    responseZh: "中文",
+    responseEn: "English",
+    modelLabel: "Model",
+    autoScrollLabel: "Auto-scroll",
+    soundLabel: "Sound",
+    on: "On",
+    off: "Off",
+    clearAll: "Clear all chats",
+    exportChat: "Export chat",
   },
 } as const;
 
@@ -167,6 +202,12 @@ type Settings = {
   fontSize: "small" | "medium" | "large";
   density: "compact" | "comfortable";
   detail: "concise" | "detailed";
+  theme: "dark" | "light";
+  sidebarWidth: "narrow" | "wide";
+  responseLang: "follow" | "zh" | "en";
+  model: string;
+  autoScroll: boolean;
+  sound: boolean;
 };
 
 const SETTINGS_KEY = "crypto-chat-settings";
@@ -174,7 +215,18 @@ const DEFAULT_SETTINGS: Settings = {
   fontSize: "medium",
   density: "comfortable",
   detail: "concise",
+  theme: "dark",
+  sidebarWidth: "narrow",
+  responseLang: "follow",
+  model: "openai/gpt-4o-mini",
+  autoScroll: true,
+  sound: false,
 };
+
+const MODEL_OPTIONS = [
+  { value: "openai/gpt-4o-mini", label: "GPT-4o mini" },
+  { value: "openai/gpt-4o", label: "GPT-4o" },
+];
 
 function loadSettings(): Settings {
   try {
@@ -182,6 +234,23 @@ function loadSettings(): Settings {
     return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
   } catch {
     return DEFAULT_SETTINGS;
+  }
+}
+
+// 播放一声短提示音(声音提醒用)
+function playBeep() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    gain.gain.value = 0.1;
+    osc.start();
+    osc.stop(ctx.currentTime + 0.15);
+  } catch {
+    // 忽略(浏览器可能不支持)
   }
 }
 
@@ -220,9 +289,17 @@ export default function Home() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const chatBody = {
+    detail: settings.detail,
+    responseLang: settings.responseLang,
+    model: settings.model,
+  };
+
   const currentIdRef = useRef<string | null>(null);
   const currentTitleRef = useRef("新对话");
   const skipSaveRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const prevStatusRef = useRef(status);
 
   useEffect(() => {
     const nav = typeof navigator !== "undefined" ? navigator.language : "";
@@ -236,6 +313,26 @@ export default function Home() {
   useEffect(() => {
     setSettings(loadSettings());
   }, []);
+
+  // 自动滚动到底部
+  useEffect(() => {
+    if (settings.autoScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, settings.autoScroll]);
+
+  // 回答完成时声音提醒
+  useEffect(() => {
+    if (settings.sound && prevStatusRef.current !== "ready" && status === "ready") {
+      playBeep();
+    }
+    prevStatusRef.current = status;
+  }, [status, settings.sound]);
+
+  // 主题应用到 body(浅色/深色)
+  useEffect(() => {
+    document.body.dataset.theme = settings.theme;
+  }, [settings.theme]);
 
   useEffect(() => {
     listConversations().then(setConversations);
@@ -291,7 +388,7 @@ export default function Home() {
       setCurrentId(currentIdRef.current);
       currentTitleRef.current = truncate(s) || t.newChatTitle;
     }
-    sendMessage({ text: s }, { body: { detail: settings.detail } });
+    sendMessage({ text: s }, { body: chatBody });
     setInput("");
   }
 
@@ -325,6 +422,30 @@ export default function Home() {
     });
   }
 
+  function clearAllChats() {
+    clearAllConversations().catch(() => {});
+    setConversations([]);
+    currentIdRef.current = null;
+    setCurrentId(null);
+    skipSaveRef.current = true;
+    setMessages([]);
+  }
+
+  function exportChat() {
+    const conv = conversations.find((c) => c.id === currentIdRef.current);
+    if (!conv) return;
+    const text = conv.messages
+      .map((m) => `${m.role === "user" ? t.you : t.ai}:\n${textOf(m)}`)
+      .join("\n\n");
+    const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${conv.title || t.newChatTitle}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   function toggleFeedback(m: UIMessage, value: "up" | "down") {
     const next = feedbackOf(m) === value ? undefined : value;
     setMessages((prev) =>
@@ -348,7 +469,7 @@ export default function Home() {
     e.preventDefault();
     const text = editingText.trim();
     if (!text || !editingId) return;
-    sendMessage({ text, messageId: editingId }, { body: { detail: settings.detail } });
+    sendMessage({ text, messageId: editingId }, { body: chatBody });
     setEditingId(null);
     setEditingText("");
   }
@@ -363,7 +484,13 @@ export default function Home() {
   const lastIndex = messages.length - 1;
 
   return (
-    <div className="layout" data-font={settings.fontSize} data-density={settings.density}>
+    <div
+      className="layout"
+      data-font={settings.fontSize}
+      data-density={settings.density}
+      data-theme={settings.theme}
+      data-width={settings.sidebarWidth}
+    >
       <aside className="sidebar">
         <div className="sidebar-brand">
           <span className="logo">₿</span>
@@ -409,6 +536,13 @@ export default function Home() {
           {settingsOpen && (
             <div className="settings-panel">
               <div className="setting-group">
+                <div className="setting-label">{t.themeLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.theme === "dark" ? "opt active" : "opt"} onClick={() => updateSetting("theme", "dark")}>{t.themeDark}</button>
+                  <button className={settings.theme === "light" ? "opt active" : "opt"} onClick={() => updateSetting("theme", "light")}>{t.themeLight}</button>
+                </div>
+              </div>
+              <div className="setting-group">
                 <div className="setting-label">{t.fontSizeLabel}</div>
                 <div className="setting-options">
                   <button className={settings.fontSize === "small" ? "opt active" : "opt"} onClick={() => updateSetting("fontSize", "small")}>{t.fontSizeSmall}</button>
@@ -424,11 +558,52 @@ export default function Home() {
                 </div>
               </div>
               <div className="setting-group">
+                <div className="setting-label">{t.sidebarWidthLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.sidebarWidth === "narrow" ? "opt active" : "opt"} onClick={() => updateSetting("sidebarWidth", "narrow")}>{t.sidebarNarrow}</button>
+                  <button className={settings.sidebarWidth === "wide" ? "opt active" : "opt"} onClick={() => updateSetting("sidebarWidth", "wide")}>{t.sidebarWide}</button>
+                </div>
+              </div>
+              <div className="setting-group">
                 <div className="setting-label">{t.detailLabel}</div>
                 <div className="setting-options">
                   <button className={settings.detail === "concise" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "concise")}>{t.detailConcise}</button>
                   <button className={settings.detail === "detailed" ? "opt active" : "opt"} onClick={() => updateSetting("detail", "detailed")}>{t.detailDetailed}</button>
                 </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.responseLangLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.responseLang === "follow" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "follow")}>{t.responseFollow}</button>
+                  <button className={settings.responseLang === "zh" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "zh")}>{t.responseZh}</button>
+                  <button className={settings.responseLang === "en" ? "opt active" : "opt"} onClick={() => updateSetting("responseLang", "en")}>{t.responseEn}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.modelLabel}</div>
+                <div className="setting-options">
+                  {MODEL_OPTIONS.map((m) => (
+                    <button key={m.value} className={settings.model === m.value ? "opt active" : "opt"} onClick={() => updateSetting("model", m.value)}>{m.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.autoScrollLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.autoScroll ? "opt active" : "opt"} onClick={() => updateSetting("autoScroll", true)}>{t.on}</button>
+                  <button className={!settings.autoScroll ? "opt active" : "opt"} onClick={() => updateSetting("autoScroll", false)}>{t.off}</button>
+                </div>
+              </div>
+              <div className="setting-group">
+                <div className="setting-label">{t.soundLabel}</div>
+                <div className="setting-options">
+                  <button className={settings.sound ? "opt active" : "opt"} onClick={() => updateSetting("sound", true)}>{t.on}</button>
+                  <button className={!settings.sound ? "opt active" : "opt"} onClick={() => updateSetting("sound", false)}>{t.off}</button>
+                </div>
+              </div>
+              <div className="setting-actions">
+                <button className="action-btn" onClick={exportChat}>{t.exportChat}</button>
+                <button className="action-btn danger" onClick={clearAllChats}>{t.clearAll}</button>
               </div>
             </div>
           )}
@@ -521,7 +696,7 @@ export default function Home() {
                           {isLastAssistant && !busy && (
                             <button
                               className="fb"
-                              onClick={() => regenerate()}
+                              onClick={() => regenerate({ body: chatBody })}
                               title={t.regenerate}
                             >
                               🔄
@@ -543,6 +718,7 @@ export default function Home() {
                 </div>
               );
             })}
+            <div ref={messagesEndRef} />
           </section>
 
           {error && (

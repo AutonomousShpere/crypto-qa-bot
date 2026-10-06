@@ -645,3 +645,131 @@ body {
   border-color: #2563eb;
   color: #fff;
 }
+
+/* ===== 侧边栏宽度 ===== */
+.layout[data-width="wide"] .sidebar {
+  width: 320px;
+}
+
+/* ===== 设置操作按钮 ===== */
+.setting-actions {
+  display: flex;
+  gap: 6px;
+}
+.action-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: 1px solid #2a3648;
+  border-radius: 6px;
+  background: none;
+  color: #cbd5e1;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.action-btn:hover {
+  background: #1a2434;
+}
+.action-btn.danger {
+  color: #f87171;
+  border-color: #7f1d1d;
+}
+
+/* ===== 浅色主题 ===== */
+body[data-theme="light"] {
+  background: #f4f6fb;
+  color: #1e293b;
+}
+body[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right-color: #e2e8f0;
+}
+body[data-theme="light"] .sidebar-brand,
+body[data-theme="light"] .header h1,
+body[data-theme="light"] .welcome h2 {
+  color: #0f172a;
+}
+body[data-theme="light"] .chat-list-title,
+body[data-theme="light"] .disclaimer,
+body[data-theme="light"] .welcome p,
+body[data-theme="light"] .chat-empty,
+body[data-theme="light"] .setting-label {
+  color: #64748b;
+}
+body[data-theme="light"] .search-input,
+body[data-theme="light"] .input-bar input,
+body[data-theme="light"] .edit-form input,
+body[data-theme="light"] .settings-btn,
+body[data-theme="light"] .opt,
+body[data-theme="light"] .action-btn {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+body[data-theme="light"] .search-input:focus,
+body[data-theme="light"] .input-bar input:focus,
+body[data-theme="light"] .edit-form input:focus {
+  border-color: #3b82f6;
+}
+body[data-theme="light"] .chat-item-btn {
+  color: #334155;
+}
+body[data-theme="light"] .chat-item:hover {
+  background: #f1f5f9;
+}
+body[data-theme="light"] .chat-item.active {
+  background: #e2e8f0;
+}
+body[data-theme="light"] .chat-item.active .chat-item-btn {
+  color: #0f172a;
+}
+body[data-theme="light"] .header {
+  border-bottom-color: #e2e8f0;
+}
+body[data-theme="light"] .message.assistant .bubble {
+  background: #ffffff;
+  border-color: #e2e8f0;
+  color: #1e293b;
+}
+body[data-theme="light"] .bubble .plain {
+  color: #1e293b;
+}
+body[data-theme="light"] .chip {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+body[data-theme="light"] .chip:hover {
+  background: #f1f5f9;
+}
+body[data-theme="light"] .lang-toggle,
+body[data-theme="light"] .settings-btn:hover,
+body[data-theme="light"] .fb:hover {
+  background: #f1f5f9;
+}
+body[data-theme="light"] .settings-panel {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+}
+body[data-theme="light"] .markdown strong {
+  color: #0f172a;
+}
+body[data-theme="light"] .markdown th,
+body[data-theme="light"] .markdown td {
+  border-color: #e2e8f0;
+}
+body[data-theme="light"] .markdown th {
+  background: #f1f5f9;
+}
+body[data-theme="light"] .markdown code,
+body[data-theme="light"] .markdown pre {
+  background: #f1f5f9;
+}
+body[data-theme="light"] .markdown blockquote {
+  border-left-color: #cbd5e1;
+  color: #64748b;
+}
+body[data-theme="light"] .markdown hr {
+  border-top-color: #e2e8f0;
+}
