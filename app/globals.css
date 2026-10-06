@@ -645,6 +645,32 @@ body {
   gap: 14px;
 }
 
+.modal-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 12px;
+  border-bottom: 1px solid #2a3648;
+}
+.tab {
+  flex: 1;
+  padding: 9px 0;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+}
+.tab:hover {
+  color: #cbd5e1;
+}
+.tab.active {
+  color: #60a5fa;
+  border-bottom-color: #60a5fa;
+  font-weight: 600;
+}
+
 .setting-group {
   display: flex;
   flex-direction: column;
@@ -786,6 +812,16 @@ body[data-theme="light"] .modal {
 }
 body[data-theme="light"] .modal-header {
   border-bottom-color: #e2e8f0;
+}
+body[data-theme="light"] .modal-tabs {
+  border-bottom-color: #e2e8f0;
+}
+body[data-theme="light"] .tab {
+  color: #64748b;
+}
+body[data-theme="light"] .tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
 }
 body[data-theme="light"] .markdown strong {
   color: #0f172a;
