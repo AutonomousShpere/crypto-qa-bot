@@ -13,6 +13,7 @@ import {
   detectUserLanguage,
   guardInput,
 } from "@/lib/chat-utils";
+import { rsi, ema, macd, last } from "@/lib/indicators";
 
 // 允许前端切换的模型白名单(防止任意模型名注入)
 const ALLOWED_MODELS = [
@@ -26,7 +27,7 @@ const SYSTEM_PROMPT = `你是 Crypto 助手,一个只回答加密货币和区块
 请严格遵守以下规则:
 1. 只回答加密货币/区块链相关问题;遇到无关问题(如做饭、写诗、编程等),礼貌说明你只擅长 crypto,并引导回 crypto 话题。
 2. 不构成投资建议:不预测涨跌、不劝买劝卖、不保证收益;涉及投资时附风险提示,不主动建议用户做交易决策。
-3. 当用户询问价格、K 线、24 小时行情、资金费率等实时数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(见工具返回的 source 字段);涉及时间时,必须使用上方提供的当前时间,不要自行猜测。
+3. 当用户询问价格、K 线、24 小时行情、资金费率、RSI/EMA/MACD 等技术指标等实时数据时,必须调用对应工具查询,不要凭记忆回答,并在回答中注明数据来源(见工具返回的 source 字段);涉及时间时,必须使用上方提供的当前时间,不要自行猜测。
 4. 绝不索取私钥或助记词;若用户主动提供,提醒对方不要在聊天中泄露。
 5. 不确定就说"我不确定",不要编造事实。
 6. 回答语言必须与用户提问语言保持一致(用户用英文提问就用英文回答,用中文就用中文);即使工具返回的数据字段是英文,也要翻译成用户的语言回答。简洁清晰。
@@ -257,6 +258,114 @@ const getFundingRate = tool({
   },
 });
 
+// 获取某币种的收盘价序列(用于计算技术指标)
+async function fetchCloses(
+  symbol: string,
+  interval: string,
+  limit: number
+): Promise<number[]> {
+  const s = toBinanceSymbol(symbol);
+  const res = await fetchFromHosts(
+    `/api/v3/klines?symbol=${s}&interval=${interval}&limit=${limit}`,
+    SPOT_HOSTS
+  );
+  const rows = (await res.json()) as Array<Array<string | number>>;
+  return rows.map((r) => Number(r[4])); // close 是第 5 列(下标 4)
+}
+
+// 工具5:RSI(相对强弱指标)
+const getRsi = tool({
+  description: "计算某币种的 RSI(相对强弱指标,Wilder 平滑)。RSI>70 通常视为超买,<30 视为超卖。",
+  inputSchema: jsonSchema<{ symbol: string; interval?: string; period?: number }>({
+    type: "object",
+    properties: {
+      symbol: { type: "string", description: "币种代码,例如 BTC、ETH" },
+      interval: { type: "string", description: "K 线周期,默认 1h" },
+      period: { type: "number", description: "RSI 周期,默认 14" },
+    },
+    required: ["symbol"],
+  }),
+  execute: async ({ symbol, interval = "1h", period = 14 }) => {
+    const s = toBinanceSymbol(symbol);
+    try {
+      const closes = await fetchCloses(s, interval, 200);
+      const latest = last(rsi(closes, period));
+      return { symbol: s, interval, period, rsi: latest, source: "Binance" };
+    } catch (e) {
+      console.error(`[tool:getRsi] failed for ${s}:`, e);
+      return { error: `Unable to compute RSI for ${s}` };
+    }
+  },
+});
+
+// 工具6:EMA(指数移动平均)
+const getEma = tool({
+  description: "计算某币种的 EMA(指数移动平均)。",
+  inputSchema: jsonSchema<{ symbol: string; interval?: string; period?: number }>({
+    type: "object",
+    properties: {
+      symbol: { type: "string", description: "币种代码,例如 BTC、ETH" },
+      interval: { type: "string", description: "K 线周期,默认 1h" },
+      period: { type: "number", description: "EMA 周期,默认 20" },
+    },
+    required: ["symbol"],
+  }),
+  execute: async ({ symbol, interval = "1h", period = 20 }) => {
+    const s = toBinanceSymbol(symbol);
+    try {
+      const closes = await fetchCloses(s, interval, 200);
+      const latest = last(ema(closes, period));
+      return { symbol: s, interval, period, ema: latest, source: "Binance" };
+    } catch (e) {
+      console.error(`[tool:getEma] failed for ${s}:`, e);
+      return { error: `Unable to compute EMA for ${s}` };
+    }
+  },
+});
+
+// 工具7:MACD
+const getMacd = tool({
+  description: "计算某币种的 MACD(快慢线、信号线、柱状图)。",
+  inputSchema: jsonSchema<{
+    symbol: string;
+    interval?: string;
+    fast?: number;
+    slow?: number;
+    signal?: number;
+  }>({
+    type: "object",
+    properties: {
+      symbol: { type: "string", description: "币种代码,例如 BTC、ETH" },
+      interval: { type: "string", description: "K 线周期,默认 1h" },
+      fast: { type: "number", description: "快线周期,默认 12" },
+      slow: { type: "number", description: "慢线周期,默认 26" },
+      signal: { type: "number", description: "信号线周期,默认 9" },
+    },
+    required: ["symbol"],
+  }),
+  execute: async ({ symbol, interval = "1h", fast = 12, slow = 26, signal = 9 }) => {
+    const s = toBinanceSymbol(symbol);
+    try {
+      const closes = await fetchCloses(s, interval, 200);
+      const [macdLine, signalLine, histogram] = macd(closes, fast, slow, signal);
+      return {
+        symbol: s,
+        interval,
+        fast,
+        slow,
+        signal,
+        macd: last(macdLine),
+        signalLine: last(signalLine),
+        histogram: last(histogram),
+        source: "Binance",
+      };
+    } catch (e) {
+      console.error(`[tool:getMacd] failed for ${s}:`, e);
+      return { error: `Unable to compute MACD for ${s}` };
+    }
+  },
+});
+
 // ===== 限流(内存版,按 IP)=====
 // 注意:Vercel 多实例时各实例独立计数,生产级需用 Redis 等共享存储
 const rateLimitMap = new Map<string, number[]>();
@@ -336,7 +445,7 @@ export async function POST(req: Request) {
       model: gateway(model),
       instructions,
       messages: await convertToModelMessages(messages),
-      tools: { getPrice, get24hStats, getKlines, getFundingRate },
+      tools: { getPrice, get24hStats, getKlines, getFundingRate, getRsi, getEma, getMacd },
       // 允许多步(工具调用 -> 拿到结果 -> 生成最终回答),最多 5 步
       stopWhen: isStepCount(5),
     });
