@@ -12,6 +12,7 @@ import {
   newConversationId,
 } from "@/lib/chat-store";
 import { Markdown } from "@/components/markdown";
+import { CandlestickChart, type Candle } from "@/components/candlestick-chart";
 import { truncate } from "@/lib/chat-utils";
 
 type Lang = "zh" | "en";
@@ -45,6 +46,7 @@ const STRINGS = {
     tabResponse: "回答",
     tabInteraction: "交互",
     tabData: "数据",
+    chart: "K 线图",
     fontSizeLabel: "字号",
     fontSizeSmall: "小",
     fontSizeMedium: "中",
@@ -101,6 +103,7 @@ const STRINGS = {
     tabResponse: "Response",
     tabInteraction: "Interaction",
     tabData: "Data",
+    chart: "Chart",
     fontSizeLabel: "Font size",
     fontSizeSmall: "Small",
     fontSizeMedium: "Medium",
@@ -297,6 +300,10 @@ export default function Home() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"appearance" | "response" | "interaction" | "data">("appearance");
+  const [chartOpen, setChartOpen] = useState(false);
+  const [chartSymbol, setChartSymbol] = useState("BTC");
+  const [chartInterval, setChartInterval] = useState("1h");
+  const [chartCandles, setChartCandles] = useState<Candle[]>([]);
 
   const chatBody = {
     detail: settings.detail,
@@ -455,6 +462,18 @@ export default function Home() {
     URL.revokeObjectURL(url);
   }
 
+  async function loadChart(symbol: string, interval: string) {
+    try {
+      const res = await fetch(
+        `/api/klines?symbol=${encodeURIComponent(symbol)}&interval=${interval}&limit=100`
+      );
+      const data = await res.json();
+      setChartCandles(data.candles ?? []);
+    } catch {
+      setChartCandles([]);
+    }
+  }
+
   function toggleFeedback(m: UIMessage, value: "up" | "down") {
     const next = feedbackOf(m) === value ? undefined : value;
     setMessages((prev) =>
@@ -556,12 +575,24 @@ export default function Home() {
               <h1>{t.title}</h1>
               <p className="disclaimer">{t.disclaimer}</p>
             </div>
-            <button
-              className="lang-toggle"
-              onClick={() => setLang((l) => (l === "zh" ? "en" : "zh"))}
-            >
-              {t.langToggle}
-            </button>
+            <div className="header-actions">
+              <button
+                className="lang-toggle"
+                title={t.chart}
+                onClick={() => {
+                  setChartOpen(true);
+                  loadChart(chartSymbol, chartInterval);
+                }}
+              >
+                📈
+              </button>
+              <button
+                className="lang-toggle"
+                onClick={() => setLang((l) => (l === "zh" ? "en" : "zh"))}
+              >
+                {t.langToggle}
+              </button>
+            </div>
           </header>
 
           <section className="messages">
@@ -789,6 +820,46 @@ export default function Home() {
                   <button className="action-btn danger" onClick={clearAllChats}>{t.clearAll}</button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {chartOpen && (
+        <div className="modal-overlay" onClick={() => setChartOpen(false)}>
+          <div className="modal chart-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span>📈 {t.chart}</span>
+              <button className="modal-close" onClick={() => setChartOpen(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="chart-controls">
+                <input
+                  value={chartSymbol}
+                  onChange={(e) => setChartSymbol(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") loadChart(chartSymbol, chartInterval);
+                  }}
+                  placeholder="BTC"
+                />
+                <select
+                  value={chartInterval}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setChartInterval(v);
+                    loadChart(chartSymbol, v);
+                  }}
+                >
+                  <option value="1m">1m</option>
+                  <option value="15m">15m</option>
+                  <option value="1h">1h</option>
+                  <option value="4h">4h</option>
+                  <option value="1d">1d</option>
+                </select>
+              </div>
+              <CandlestickChart candles={chartCandles} />
             </div>
           </div>
         </div>

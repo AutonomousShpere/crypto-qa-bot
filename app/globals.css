@@ -844,3 +844,47 @@ body[data-theme="light"] .markdown blockquote {
 body[data-theme="light"] .markdown hr {
   border-top-color: #e2e8f0;
 }
+
+/* ===== K 线图 ===== */
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.chart-modal {
+  width: 640px;
+  max-width: calc(100vw - 32px);
+}
+.chart-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.chart-controls input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #2a3648;
+  background: #121a28;
+  color: #e5e7eb;
+  font-size: 14px;
+}
+.chart-controls input:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+.chart-controls select {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #2a3648;
+  background: #121a28;
+  color: #e5e7eb;
+  font-size: 14px;
+}
+body[data-theme="light"] .chart-controls input,
+body[data-theme="light"] .chart-controls select {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  color: #334155;
+}
