@@ -430,7 +430,7 @@ export async function POST(req: Request) {
     const langInstruction =
       lang === "en"
         ? "IMPORTANT: You must respond in English only. Never respond in Chinese, even if the user writes in Chinese."
-        : "重要:请务必只用简体中文回答,即使用户用英文提问也不要回答英文。";
+        : "重要:请务必只用简体中文回答所有问题。";
     const detailInstruction =
       detail === "detailed"
         ? "用户希望回答详细、完整,请尽量详尽地解释,可适当分点展开。"
