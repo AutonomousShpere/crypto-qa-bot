@@ -5,6 +5,7 @@ export type Conversation = {
   title: string;
   updatedAt: number;
   messages: UIMessage[];
+  pinned?: boolean;
 };
 
 const STORAGE_KEY = "crypto-chat-conversations";
@@ -35,6 +36,15 @@ export async function deleteConversation(id: string): Promise<void> {
 /** 清空所有会话 */
 export async function clearAllConversations(): Promise<void> {
   writeAll([]);
+}
+
+/** 设置会话是否固定(置顶) */
+export async function setPinned(id: string, pinned: boolean): Promise<void> {
+  const list = readAll();
+  const conv = list.find((c) => c.id === id);
+  if (!conv) return;
+  conv.pinned = pinned;
+  writeAll(list);
 }
 
 /** 生成新的会话 id */

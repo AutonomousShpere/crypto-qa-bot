@@ -9,6 +9,7 @@ import {
   upsertConversation,
   deleteConversation,
   clearAllConversations,
+  setPinned,
   newConversationId,
 } from "@/lib/chat-store";
 import { Markdown } from "@/components/markdown";
@@ -25,6 +26,7 @@ const STRINGS = {
     noHistory: "暂无历史对话",
     searchPlaceholder: "搜索对话…",
     noResults: "无匹配结果",
+    pin: "固定",
     newChatTitle: "新对话",
     title: "Crypto 问答助手",
     disclaimer: "仅供学习交流,不构成投资建议。",
@@ -82,6 +84,7 @@ const STRINGS = {
     noHistory: "No conversations yet",
     searchPlaceholder: "Search chats…",
     noResults: "No matches",
+    pin: "Pin",
     newChatTitle: "New chat",
     title: "Crypto Q&A Assistant",
     disclaimer: "For learning only. Not financial advice.",
@@ -304,6 +307,7 @@ export default function Home() {
   const [chartSymbol, setChartSymbol] = useState("BTC");
   const [chartInterval, setChartInterval] = useState("1h");
   const [chartCandles, setChartCandles] = useState<Candle[]>([]);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const chatBody = {
     detail: settings.detail,
@@ -381,6 +385,7 @@ export default function Home() {
     setCurrentId(id);
     setInput("");
     setEditingId(null);
+    setMobileNavOpen(false);
     skipSaveRef.current = true;
     if (id) {
       const conv = conversations.find((c) => c.id === id);
@@ -424,6 +429,14 @@ export default function Home() {
       skipSaveRef.current = true;
       setMessages([]);
     }
+  }
+
+  function togglePin(c: Conversation) {
+    const next = !(c.pinned ?? false);
+    setConversations((prev) =>
+      prev.map((x) => (x.id === c.id ? { ...x, pinned: next } : x))
+    );
+    setPinned(c.id, next).catch(() => {});
   }
 
   function updateSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
@@ -504,7 +517,12 @@ export default function Home() {
 
   const t = STRINGS[lang];
   const busy = status === "submitted" || status === "streaming";
-  const sorted = [...conversations].sort((a, b) => b.updatedAt - a.updatedAt);
+  const sorted = [...conversations].sort((a, b) => {
+    if ((a.pinned ?? false) !== (b.pinned ?? false)) {
+      return a.pinned ? -1 : 1;
+    }
+    return b.updatedAt - a.updatedAt;
+  });
   const q = searchQuery.trim().toLowerCase();
   const filtered = q
     ? sorted.filter((c) => conversationSearchText(c).includes(q))
@@ -520,7 +538,7 @@ export default function Home() {
         data-theme={settings.theme}
         data-width={settings.sidebarWidth}
       >
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileNavOpen ? "open" : ""}`}>
         <div className="sidebar-brand">
           <span className="logo">₿</span>
           <span>{t.brand}</span>
@@ -551,6 +569,13 @@ export default function Home() {
                 {c.title || t.newChatTitle}
               </button>
               <button
+                className={`chat-pin ${c.pinned ? "active" : ""}`}
+                title={t.pin}
+                onClick={() => togglePin(c)}
+              >
+                📌
+              </button>
+              <button
                 className="chat-del"
                 title="删除"
                 onClick={() => deleteChat(c.id)}
@@ -576,6 +601,13 @@ export default function Home() {
               <p className="disclaimer">{t.disclaimer}</p>
             </div>
             <div className="header-actions">
+              <button
+                className="menu-btn"
+                onClick={() => setMobileNavOpen(true)}
+                title="菜单"
+              >
+                ☰
+              </button>
               <button
                 className="lang-toggle"
                 title={t.chart}
@@ -719,6 +751,10 @@ export default function Home() {
         </div>
       </main>
       </div>
+
+      {mobileNavOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileNavOpen(false)} />
+      )}
 
       {settingsOpen && (
         <div className="modal-overlay" onClick={() => setSettingsOpen(false)}>
